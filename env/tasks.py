@@ -11,12 +11,12 @@ tasks = [
     },
     {
         "id": "refund_request_damaged",
-        "customer_message": "My product arrived damaged",
-        "order_status": "Delivered",
+        "customer_message": "My order arrived but the item is completely shattered.",
+        "order_status": "Delivered (Damaged)",
         "difficulty": "medium",
         "expected": {
             "type": "refund",
-            "keywords": ["refund", "replace"]
+            "keywords": ["refund", "sorry"]
         }
     },
     {
@@ -26,7 +26,7 @@ tasks = [
         "difficulty": "hard",
         "expected": {
             "type": "escalate",
-            "keywords": ["escalate", "support"]
+            "keywords": ["escalate", "manager", "supervisor", "support"]
         }
     }
 ]

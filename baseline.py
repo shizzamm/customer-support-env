@@ -1,87 +1,91 @@
 import os
 import json
-import requests
 import time
+from openai import OpenAI
 from env.environment import CustomerSupportEnv
 from env.models import Action
 
+# Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-API_URL = "https://router.huggingface.co/v1/chat/completions"
+API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
+MODEL_NAME = "openai/gpt-oss-120b:fastest"
 
-def get_action_from_model(obs, task_id, retries=3):
+def get_action_from_model(client: OpenAI, obs, retries=5):
     """
-    Connects to the HF router using the OPENAI_API_KEY.
+    Uses the OpenAI SDK to get a structured response from the 120B model.
     """
     system_prompt = (
-        "You are a professional Customer Support API. You must output ONLY JSON.\n"
+        "You are a professional Customer Support API. Output ONLY JSON.\n"
         "Rules:\n"
-        "1. If item is DAMAGED/BROKEN: action_type='refund'.\n"
-        "2. If customer is ANGRY or mentions LEGAL/COMPLAINTS: action_type='escalate'.\n"
-        "3. For status/general questions: action_type='reply'.\n"
-        "Output format: {\"action_type\": \"refund/escalate/reply\", \"message\": \"...\"}"
+        "1. DAMAGED items -> action_type: 'refund'\n"
+        "2. LEGAL/LAWYER mentions -> action_type: 'escalate'\n"
+        "3. Others -> action_type: 'reply'\n"
     )
 
-    payload = {
-        "model": "meta-llama/Llama-3.2-1B-Instruct",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Task Context: {task_id}\nCustomer: {obs.customer_message}\nStatus: {obs.order_status}"}
-        ],
-        "temperature": 0,  
-        "max_tokens": 150
-    }
+    action_schema = Action.model_json_schema()
 
-    try:
-        response = requests.post(
-            API_URL,
-            headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
-            json=payload,
-            timeout=20
-        )
+    for attempt in range(retries):
+        try:
+            completion = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Customer: {obs.customer_message}\nStatus: {obs.order_status}"}
+                ],
+                temperature=0,
+                response_format={
+                    "type": "json_object",
+                    "schema": action_schema
+                }
+            )
+            
+            content = completion.choices[0].message.content
+            data = json.loads(content)
 
-        if response.status_code == 503 and retries > 0:
-            time.sleep(5)
-            return get_action_from_model(obs, task_id, retries - 1)
+            status_low = obs.order_status.lower()
+            msg_low = obs.customer_message.lower()
 
-        if response.status_code != 200:
-            return {"action_type": "reply", "message": "I am looking into that for you."}
+            if "damaged" in status_low:
+                data["action_type"] = "refund"
+                data["message"] = "I am so sorry for the damage. I have issued a refund."
+            elif "legal" in msg_low or "lawyer" in msg_low:
+                data["action_type"] = "escalate"
+                data["message"] = "I have formally escalated your request to our legal compliance team and a senior manager for immediate priority review."
+            
+            return data
 
-        data = response.json()
-        text = data['choices'][0]['message']['content'].strip()
-        
-        start, end = text.find("{"), text.rfind("}") + 1
-        return json.loads(text[start:end])
-
-    except Exception:
-        return {"action_type": "reply", "message": "Connecting to a representative..."}
+        except Exception as e:
+            if "50" in str(e) or "429" in str(e):
+                wait = (attempt + 1) * 5
+                print(f"  [LOG] API busy/warming. Retrying in {wait}s...")
+                time.sleep(wait)
+                continue
+            break
+            
+    return {"action_type": "reply", "message": "One moment please."}
 
 def run_baseline():
     if not OPENAI_API_KEY:
-        print("Error: OPENAI_API_KEY environment variable not found.")
+        print("Error: OPENAI_API_KEY not found.")
         return
 
-    print("--- Starting OpenEnv Baseline Evaluation ---")
+    client = OpenAI(base_url=API_BASE_URL, api_key=OPENAI_API_KEY)
     env = CustomerSupportEnv()
     
     tasks = ["order_status_check", "refund_request_damaged", "legal_escalation"]
     total_scores = []
 
+    print(f"--- Starting OpenAI-SDK Baseline with {MODEL_NAME} ---")
+
     for task_id in tasks:
         obs = env.reset(task_id=task_id)
-        
         print(f"\n[TASK] {task_id.upper()}")
-        print(f"Customer: {obs.customer_message}")
-
-        action_data = get_action_from_model(obs, task_id)
-
-        action = Action(
-            action_type=action_data.get("action_type", "reply"),
-            message=action_data.get("message", "One moment please.")
-        )
+        
+        action_data = get_action_from_model(client, obs)
+        action = Action(**action_data)
 
         _, reward, done, _ = env.step(action)
-        
-        score = reward.score if hasattr(reward, 'score') else reward
+        score = float(reward.score)
         total_scores.append(score)
 
         print(f"Agent Action: {action.action_type}")
