@@ -53,7 +53,7 @@ The environment includes 3 deterministic tasks defined in `openenv.yaml`:
 
 2. Launch Server:
    ```bash
-   uvicorn server:app --host 0.0.0.0 --port 7860
+   uvicorn server.app:app --host 0.0.0.0 --port 7860
 
 3. Using the API
    Reset: POST /reset with {"task_id": "legal_escalation"} to start a specific scenario.

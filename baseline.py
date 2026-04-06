@@ -6,7 +6,7 @@ from env.environment import CustomerSupportEnv
 from env.models import Action
 
 # Configuration
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+HF_TOKEN = os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 MODEL_NAME = "openai/gpt-oss-120b:fastest"
 
@@ -65,11 +65,11 @@ def get_action_from_model(client: OpenAI, obs, retries=5):
     return {"action_type": "reply", "message": "One moment please."}
 
 def run_baseline():
-    if not OPENAI_API_KEY:
-        print("Error: OPENAI_API_KEY not found.")
+    if not HF_TOKEN:
+        print("Error: HF_TOKEN not found.")
         return
 
-    client = OpenAI(base_url=API_BASE_URL, api_key=OPENAI_API_KEY)
+    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
     env = CustomerSupportEnv()
     
     tasks = ["order_status_check", "refund_request_damaged", "legal_escalation"]

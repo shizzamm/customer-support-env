@@ -2,7 +2,7 @@ name: customer-support-env
 version: 1.0.0
 description: "Real-world customer support simulation for order tracking, refunds, and escalations."
 
-entrypoint: server:app 
+entrypoint: server.app:app 
 
 tasks:
   - id: "order_status_check"

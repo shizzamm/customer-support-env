@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "customer-support-env"
-version = "0.1.0"
+version = "1.0.0"
 description = "An OpenEnv-compliant customer support simulation environment"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,8 +17,14 @@ dependencies = [
     "pydantic>=2.0.0",
     "requests>=2.31.0",
     "python-dotenv>=1.0.0",
-    "openai>=1.0.0"  
+    "openai>=1.0.0",
+    "openenv-core>=0.2.0"
 ]
+
+[project.scripts]
+customer-support-env = "server.app:main"
+openenv-server = "server.app:main"
+server = "server.app:main"
 
 [project.optional-dependencies]
 dev = [
@@ -27,4 +33,4 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["env"]
+packages = ["env", "server"]
