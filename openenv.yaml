@@ -8,12 +8,15 @@ tasks:
   - id: "order_status_check"
     difficulty: "easy"
     description: "Customer asking for the status of their order."
+    grader: "env.grader:grade"  
   - id: "refund_request_damaged"
     difficulty: "medium"
     description: "Customer reporting a damaged item requiring a refund."
+    grader: "env.grader:grade"  
   - id: "legal_escalation"
     difficulty: "hard"
     description: "Angry customer threatening legal action requiring manager escalation."
+    grader: "env.grader:grade"  
 
 endpoints:
   reset:

@@ -5,6 +5,10 @@ from env.tasks import tasks
 from env.grader import grade
 
 class CustomerSupportEnv:
+    """
+    Standardized OpenEnv-compliant simulation for Customer Support AI Agents.
+    Evaluates agents on multi-turn trajectories with performance-based rewards.
+    """
 
     def __init__(self):
         self.current_task = None
@@ -12,11 +16,12 @@ class CustomerSupportEnv:
         self.steps = 0   
         self.max_steps = 5  
         self.task_id = None
+        self.is_done = False
 
     def reset(self, task_id: Optional[str] = None) -> Observation:
         """
-        Resets the environment. 
-        Requirement: Supports selecting specific tasks (Easy/Medium/Hard).
+        Resets the environment to an initial state.
+        Supports selecting specific tasks (Easy/Medium/Hard) or random selection.
         """
         if task_id:
             selected_task = next((t for t in tasks if t.get("id") == task_id), None)
@@ -29,7 +34,8 @@ class CustomerSupportEnv:
             self.task_id = self.current_task.get("id", "random")
 
         self.history = []
-        self.steps = 0  
+        self.steps = 0
+        self.is_done = False
 
         return Observation(
             customer_message=self.current_task["customer_message"],
@@ -38,8 +44,12 @@ class CustomerSupportEnv:
         )
 
     def step(self, action: Action) -> Tuple[Observation, Reward, bool, Dict[str, Any]]:
+        """
+        Executes one time step within the environment.
+        Calculates rewards based on task completion, efficiency, and response quality.
+        """
         if self.current_task is None:
-            raise ValueError("Call /reset before /step")
+            raise ValueError("Call reset() before step()")
 
         self.steps += 1  
         expected = self.current_task.get("expected")
@@ -53,6 +63,8 @@ class CustomerSupportEnv:
         final_reward_value = max(-1.0, min(1.0, base_score + step_penalty + quality_penalty))
 
         self.history.append(f"Agent ({action.action_type}): {action.message}")
+        
+        self.is_done = (base_score > 0.8) or (self.steps >= self.max_steps)
 
         reward = Reward(
             score=final_reward_value,
@@ -62,9 +74,6 @@ class CustomerSupportEnv:
                 "Action does not match customer needs"
             )
         )
-
-
-        done = (base_score > 0.8) or (self.steps >= self.max_steps)
 
         observation = Observation(
             customer_message=self.current_task["customer_message"],
@@ -79,11 +88,11 @@ class CustomerSupportEnv:
             "base_grader_score": base_score
         }
 
-        return observation, reward, done, info
+        return observation, reward, self.is_done, info
 
     def state(self) -> Dict:
         """
-        Requirement: Implement state() returning current environment status.
+        Returns the current internal state of the environment.
         """
         return {
             "task_id": self.task_id,
@@ -91,5 +100,5 @@ class CustomerSupportEnv:
             "order_status": self.current_task["order_status"] if self.current_task else None,
             "history": self.history,
             "steps": self.steps,
-            "done": (self.steps >= self.max_steps)
+            "done": self.is_done
         }
