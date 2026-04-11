@@ -1,32 +1,35 @@
 tasks = [
     {
         "id": "order_status_check",
-        "customer_message": "Where is my order?",
-        "order_status": "Shipped, arriving tomorrow",
+        "customer_message": "Where is my order #12345?",
+        "order_status": "Shipped",
         "difficulty": "easy",
+        "grader": "env.grader:grade",
         "expected": {
             "type": "reply",
-            "keywords": ["tomorrow", "shipped"]
+            "keywords": ["shipped", "order", "status"]
         }
     },
     {
         "id": "refund_request_damaged",
-        "customer_message": "My order arrived but the item is completely shattered.",
-        "order_status": "Delivered (Damaged)",
+        "customer_message": "My item arrived broken. I want a refund.",
+        "order_status": "Delivered",
         "difficulty": "medium",
+        "grader": "env.grader:grade",
         "expected": {
             "type": "refund",
-            "keywords": ["refund", "sorry"]
+            "keywords": ["sorry", "damaged", "refund", "processed", "item", "broken"]
         }
     },
     {
         "id": "legal_escalation",
-        "customer_message": "I will take legal action if this is not fixed",
-        "order_status": "Delivered",
+        "customer_message": "This is unacceptable. I am calling my lawyer!",
+        "order_status": "Pending",
         "difficulty": "hard",
+        "grader": "env.grader:grade",
         "expected": {
             "type": "escalate",
-            "keywords": ["escalate", "manager", "supervisor", "support"]
-        }
+            "keywords": ["apologize", "legal", "manager", "escalate", "inconvenience"]
     }
+}
 ]

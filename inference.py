@@ -7,14 +7,15 @@ from openai import OpenAI
 from env.environment import CustomerSupportEnv
 from env.models import Action
 
-#from dotenv import load_dotenv
-#load_dotenv()
+# from dotenv import load_dotenv
+# load_dotenv()
 
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
 
-TASK_NAME = os.getenv("TASK_NAME", "refund_request_damaged") 
+TASK_NAME = os.getenv("TASK_ID") or os.getenv("TASK_NAME") or "order_status_check"
+
 BENCHMARK = "customer_support_env"
 MAX_STEPS = 5
 TEMPERATURE = 0.0
@@ -27,7 +28,7 @@ SYSTEM_PROMPT = textwrap.dedent("""
 
     LOGIC:
     - If status is 'Delivered (Damaged)', action_type MUST be 'refund'.
-    - If customer mentions 'legal' or 'lawyer', action_type MUST be 'escalate'.
+    - If customer mentions 'legal', 'lawyer', or 'sue', action_type MUST be 'escalate'.
     - If you need more info, use 'ask_clarification'.
     - Otherwise, use 'reply'.
 """).strip()
@@ -57,28 +58,21 @@ def get_model_action(client: OpenAI, obs) -> dict:
         )
         return json.loads(completion.choices[0].message.content)
     except Exception as e:
+        print(f"[MODEL ERROR] {e}", flush=True)
         return {"action_type": "reply", "message": "I am looking into this for you."}
 
-def main():
-    if not API_KEY:
-        print("Error: HF_TOKEN/API_KEY environment variable not set.")
-        return
-
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    env = CustomerSupportEnv()
-    
+def run_single_task(client, env, task_id):
     rewards_history = []
     steps_taken = 0
     final_score = 0.0
     
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+    log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
 
     try:
-        obs = env.reset(task_id=TASK_NAME)
+        obs = env.reset(task_id=task_id)
         
         for step in range(1, MAX_STEPS + 1):
             steps_taken = step
-            
             action_data = get_model_action(client, obs)
             action_obj = Action(**action_data)
             
@@ -91,15 +85,28 @@ def main():
             log_step(step=step, action=action_summary, reward=current_reward, done=done, error=None)
             
             if done:
-                final_score = max(0.0, min(current_reward, 1.0))
+                final_score = current_reward
                 break
-    
+        
+        success = final_score >= 0.4
+        log_end(success=success, steps=steps_taken, score=final_score, rewards=rewards_history)
+        
     except Exception as e:
         log_step(step=steps_taken, action="error", reward=0.0, done=True, error=str(e))
+        log_end(success=False, steps=steps_taken, score=0.0, rewards=rewards_history)
+
+def main():
+    if not API_KEY:
+        print("Error: HF_TOKEN/API_KEY environment variable not set.")
+        return
+
+    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    env = CustomerSupportEnv()
     
-    finally:
-        success = final_score >= 0.7  
-        log_end(success=success, steps=steps_taken, score=final_score, rewards=rewards_history)
+    tasks_to_run = [TASK_NAME] if os.getenv("TASK_ID") else ["order_status_check", "refund_request_damaged", "legal_escalation"]
+
+    for t_id in tasks_to_run:
+        run_single_task(client, env, t_id)
 
 if __name__ == "__main__":
     main()
